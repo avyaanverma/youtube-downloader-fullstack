@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=320, initial-scale=1.0">
+  <title>YouLaugh - Video Downloader</title>
+  <style>
+    :root {
+      --bg-main: #35393c;
+      --bg-card: #232629;
+      --accent: #b6aaff;
+      --button: #aaf7e2;
+      --text-main: #fff;
+      --text-muted: #cfcfcf;
+      --text-accent: #232629;
+      --radius: 16px;
+      --font-main: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+    }
+    body {
+      background: var(--bg-main);
+      color: var(--text-main);
+      font-family: var(--font-main);
+      width: 370px;
+      margin: 0;
+      padding: 0;
+      border-radius: var(--radius);
+      box-sizing: border-box;
+      min-height: 320px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    .header {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 18px 24px 0 24px;
+      box-sizing: border-box;
+    }
+    .logo {
+      font-size: 2rem;
+      font-family: 'Comic Sans MS', 'Comic Sans', cursive;
+      font-weight: 600;
+      letter-spacing: 1px;
+    }
+    .play-btn {
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, #7ecbff 60%, #b6aaff 100%);
+      border: none;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 2px 8px #0002;
+    }
+    .main-content {
+      display: flex;
+      flex-direction: row;
+      width: 100%;
+      padding: 18px 24px 0 24px;
+      box-sizing: border-box;
+      gap: 18px;
+    }
+    .thumb {
+      width: 120px;
+      height: 80px;
+      background: var(--bg-card);
+      border-radius: var(--radius);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.3rem;
+      color: var(--text-muted);
+      font-family: 'Comic Sans MS', 'Comic Sans', cursive;
+    }
+    .video-info {
+      flex: 1;
+      background: var(--bg-card);
+      border-radius: var(--radius);
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      min-width: 120px;
+      min-height: 80px;
+      color: var(--text-main);
+      font-size: 1rem;
+      gap: 4px;
+    }
+    .video-title {
+      font-weight: 600;
+      font-size: 1.1rem;
+      margin-bottom: 2px;
+      color: var(--text-main);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .video-channel {
+      font-size: 0.95rem;
+      color: var(--text-muted);
+    }
+    .video-desc {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      margin-top: 2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .options {
+      width: 100%;
+      display: flex;
+      flex-direction: row;
+      gap: 18px;
+      margin-top: 24px;
+      padding: 0 24px 24px 24px;
+      box-sizing: border-box;
+    }
+    .qualities {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      flex: 1;
+    }
+    .quality-btn {
+      background: var(--accent);
+      color: var(--text-accent);
+      border: none;
+      border-radius: var(--radius);
+      padding: 12px 0;
+      font-size: 1.1rem;
+      font-family: 'Comic Sans MS', 'Comic Sans', cursive;
+      font-weight: 500;
+      cursor: default;
+      outline: none;
+      box-shadow: 0 1px 4px #0001;
+      transition: background 0.2s;
+    }
+    .downloads {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      flex: 1.2;
+    }
+    .download-btn {
+      background: var(--button);
+      color: var(--text-accent);
+      border: none;
+      border-radius: var(--radius);
+      padding: 12px 0;
+      font-size: 1.5rem;
+      font-family: 'Comic Sans MS', 'Comic Sans', cursive;
+      font-weight: 500;
+      cursor: pointer;
+      outline: none;
+      box-shadow: 0 1px 4px #0001;
+      transition: background 0.2s;
+    }
+    .download-btn:hover {
+      background: #b6ffe2;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <span class="logo">YouLaugh</span>
+    <button class="play-btn" title="Play video">
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <polygon points="5,3 17,10 5,17" fill="#fff"/>
+      </svg>
+    </button>
+  </div>
+  <div class="main-content">
+    <div class="thumb">img</div>
+    <div class="video-info">
+      <div class="video-title">video title</div>
+      <div class="video-channel">channel name</div>
+      <div class="video-desc">description</div>
+    </div>
+  </div>
+  <div class="options">
+    <div class="qualities">
+      <button class="quality-btn" disabled>320p</button>
+      <button class="quality-btn" disabled>480p</button>
+      <button class="quality-btn" disabled>720p</button>
+    </div>
+    <div class="downloads">
+      <button class="download-btn">Download</button>
+      <button class="download-btn">Download</button>
+      <button class="download-btn">Download</button>
+    </div>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>

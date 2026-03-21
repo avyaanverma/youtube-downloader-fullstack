@@ -1,0 +1,13 @@
+# Python
+backend/evenv/
+backend/__pycache__/
+*.pyc
+
+# Logs
+*.log
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
