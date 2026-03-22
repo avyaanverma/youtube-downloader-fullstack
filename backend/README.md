@@ -1,13 +1,48 @@
-# YouTube Downloader Python BackendThis backend uses Python, Flask, and yt-dlp to download YouTube videos in various qualities.## Setup1. 
+# YouTube Downloader Python Backend
 
-**Install Python dependencies:**   
+This backend uses Python, Flask, and `yt-dlp` to download YouTube videos in different qualities.
 
-```bash   pip install flask flask-cors yt-dlp   ```2. **Run the backend server:**   ```bash   python yt_backend.py   ```   The server will start at `http://localhost:5000`.## Usage- To download a video, make a GET request to:  ```  http://localhost:5000/download?url=YOUTUBE_VIDEO_URL&quality=320p|480p|720p|best  ```- The video will be streamed as a download.## Example```GET http://localhost:5000/download?url=https://www.youtube.com/watch?v=dQw4w9WgXcQ&quality=720p```## Supported Qualities- 320p
-- 360p
-- 480p
-- 720p
-- best (default)
+## Local Setup
 
-## Notes
-- Make sure `yt-dlp` is installed and available in your PATH.
-- This backend replaces any previous Node.js backend.
+1. Install dependencies:
+```bash
+pip install -r requirements.txt
+```
+
+2. Run the server:
+```bash
+python yt_backend.py
+```
+
+Server starts on `http://localhost:5000`.
+
+## API Usage
+
+- Health check:
+```http
+GET /health
+```
+
+- Download endpoint:
+```http
+GET /download?url=YOUTUBE_VIDEO_URL&quality=320p|360p|480p|720p|best
+```
+
+Example:
+```http
+GET http://localhost:5000/download?url=https://www.youtube.com/watch?v=dQw4w9WgXcQ&quality=720p
+```
+
+## Deploy (Render / Railway)
+
+This folder is deployment-ready with:
+- `requirements.txt`
+- `Procfile`
+- `runtime.txt`
+
+Start command:
+```bash
+gunicorn yt_backend:app
+```
+
+The app auto-uses platform `PORT` env var in production.

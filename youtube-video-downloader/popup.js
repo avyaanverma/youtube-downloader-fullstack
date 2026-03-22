@@ -1,4 +1,6 @@
-const BACKEND_BASE_URL = "http://localhost:5000";
+import {CONFIG} from "./config.js"
+
+const BACKEND_BASE_URL = CONFIG.BASE_URL;
 const DOWNLOAD_QUALITIES = ["320p", "480p", "720p"];
 
 function isYouTubeVideoUrl(url) {
