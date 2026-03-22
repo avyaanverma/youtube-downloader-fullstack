@@ -91,6 +91,8 @@ def download():
     # Android client does not support cookies in yt-dlp.
     player_client = "web" if cookie_args else "web,android"
 
+    remote_components = os.environ.get("YTDLP_REMOTE_COMPONENTS", "ejs:github").strip()
+
     ytdlp_cmd = [
         "yt-dlp",
         "--js-runtimes",
@@ -107,6 +109,9 @@ def download():
         "-",  # output to stdout
         url,
     ]
+
+    if remote_components:
+        ytdlp_cmd[1:1] = ["--remote-components", remote_components]
 
     if cookie_args:
         ytdlp_cmd[1:1] = cookie_args
