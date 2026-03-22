@@ -1,6 +1,6 @@
-import {CONFIG} from "./config.js"
+import CONFIG from "./config.js";
 
-const BACKEND_BASE_URL = CONFIG.BASE_URL;
+const BACKEND_BASE_URL = (CONFIG.BASE_URL || "").replace(/\/+$/, "");
 const DOWNLOAD_QUALITIES = ["320p", "480p", "720p"];
 
 function isYouTubeVideoUrl(url) {
@@ -83,3 +83,4 @@ document.addEventListener("DOMContentLoaded", () => {
     );
   });
 });
+

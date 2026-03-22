@@ -46,3 +46,26 @@ gunicorn yt_backend:app
 ```
 
 The app auto-uses platform `PORT` env var in production.
+
+## Fix "Sign in to confirm you're not a bot" in Deploy
+
+On cloud servers, `--cookies-from-browser` usually does not work (no browser profile exists).
+Use one of these env vars:
+
+1. `YTDLP_COOKIES_CONTENT` (recommended)
+- Put full Netscape-format cookies text in this env var.
+- Backend writes it to a temp file and passes `--cookies` to yt-dlp.
+
+2. `YTDLP_COOKIES_FILE`
+- Path to a cookies file already present in container/storage.
+
+3. `YTDLP_COOKIES_FROM_BROWSER`
+- Best for local/dev only.
+
+Priority order used by backend:
+`YTDLP_COOKIES_CONTENT` -> `YTDLP_COOKIES_FILE` -> `YTDLP_COOKIES_FROM_BROWSER`.
+
+If YouTube bot-check blocks a video, API now returns:
+- `error: "youtube_bot_check"`
+- a human-readable `message`
+- raw yt-dlp `details` snippet for debugging.

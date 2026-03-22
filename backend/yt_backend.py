@@ -1,11 +1,52 @@
 import os
 import subprocess
+import tempfile
 
 from flask import Flask, Response, jsonify, request
 from flask_cors import CORS
 
 app = Flask(__name__)
 CORS(app)
+
+
+def resolve_cookie_args():
+    """
+    Resolve yt-dlp auth flags in a deployment-friendly order:
+    1) YTDLP_COOKIES_CONTENT (raw Netscape cookies content)
+    2) YTDLP_COOKIES_FILE (path mounted on server)
+    3) YTDLP_COOKIES_FROM_BROWSER (local/dev only)
+    """
+    cookies_content = os.environ.get("YTDLP_COOKIES_CONTENT", "").strip()
+    cookies_file = os.environ.get("YTDLP_COOKIES_FILE", "cookies.txt")
+    cookies_from_browser = os.environ.get("YTDLP_COOKIES_FROM_BROWSER", "").strip()
+
+    if cookies_content:
+        temp_path = os.path.join(tempfile.gettempdir(), "yt_cookies.txt")
+        with open(temp_path, "w", encoding="utf-8") as fh:
+            fh.write(cookies_content)
+        return ["--cookies", temp_path]
+
+    if os.path.exists(cookies_file):
+        return ["--cookies", cookies_file]
+
+    if cookies_from_browser:
+        return ["--cookies-from-browser", cookies_from_browser]
+
+    return []
+
+
+def classify_ytdlp_error(stderr_text):
+    lowered = (stderr_text or "").lower()
+    if "sign in to confirm you" in lowered and "not a bot" in lowered:
+        return {
+            "error": "youtube_bot_check",
+            "message": (
+                "YouTube blocked anonymous access for this video. "
+                "Set YTDLP_COOKIES_CONTENT (recommended in cloud deploy), "
+                "or YTDLP_COOKIES_FILE, then redeploy."
+            ),
+        }
+    return {"error": "yt-dlp failed", "message": "yt-dlp failed"}
 
 
 @app.route("/health", methods=["GET"])
@@ -49,12 +90,9 @@ def download():
         url,
     ]
 
-    cookies_file = os.environ.get("YTDLP_COOKIES_FILE", "cookies.txt")
-    cookies_from_browser = os.environ.get("YTDLP_COOKIES_FROM_BROWSER", "")
-    if os.path.exists(cookies_file):
-        ytdlp_cmd[1:1] = ["--cookies", cookies_file]
-    elif cookies_from_browser:
-        ytdlp_cmd[1:1] = ["--cookies-from-browser", cookies_from_browser]
+    cookie_args = resolve_cookie_args()
+    if cookie_args:
+        ytdlp_cmd[1:1] = cookie_args
 
     try:
         proc = subprocess.Popen(ytdlp_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -68,7 +106,14 @@ def download():
         proc.wait()
         err = proc.stderr.read().decode("utf-8", errors="ignore")
         app.logger.error("yt-dlp failed early: %s", err)
-        return jsonify({"error": "yt-dlp failed", "details": err[:700]}), 502
+        classified = classify_ytdlp_error(err)
+        return jsonify(
+            {
+                "error": classified["error"],
+                "message": classified["message"],
+                "details": err[:700],
+            }
+        ), 502
 
     def generate():
         yield first_chunk
