@@ -86,12 +86,17 @@ def download():
     }
     fmt = quality_map.get(quality, "bestvideo+bestaudio/best")
 
+    cookie_args = resolve_cookie_args()
+
+    # Android client does not support cookies in yt-dlp.
+    player_client = "web" if cookie_args else "web,android"
+
     ytdlp_cmd = [
         "yt-dlp",
         "--js-runtimes",
         "node",
         "--extractor-args",
-        "youtube:player_client=web,android",
+        f"youtube:player_client={player_client}",
         "--sleep-requests",
         "2",
         "--retries",
@@ -103,7 +108,6 @@ def download():
         url,
     ]
 
-    cookie_args = resolve_cookie_args()
     if cookie_args:
         ytdlp_cmd[1:1] = cookie_args
 
