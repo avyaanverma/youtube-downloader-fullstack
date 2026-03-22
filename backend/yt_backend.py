@@ -1,6 +1,8 @@
 import os
+import select
 import subprocess
 import tempfile
+import time
 
 from flask import Flask, Response, jsonify, request
 from flask_cors import CORS
@@ -123,9 +125,33 @@ def download():
     except Exception as exc:
         return jsonify({"error": f"Failed to start yt-dlp: {str(exc)}"}), 500
 
-    first_chunk = proc.stdout.read(4096)
+    startup_timeout_s = int(os.environ.get("YTDLP_STARTUP_TIMEOUT", "90"))
+    deadline = time.monotonic() + startup_timeout_s
+    first_chunk = b""
+
+    while time.monotonic() < deadline:
+        if proc.poll() is not None:
+            break
+
+        ready, _, _ = select.select([proc.stdout], [], [], 1.0)
+        if ready:
+            first_chunk = proc.stdout.read(4096)
+            if first_chunk:
+                break
+
     if not first_chunk:
-        proc.wait()
+        if proc.poll() is None:
+            proc.terminate()
+            err = f"yt-dlp startup timeout after {startup_timeout_s}s"
+            app.logger.error(err)
+            return jsonify(
+                {
+                    "error": "yt-dlp startup timeout",
+                    "message": "Video initialization took too long. Please retry.",
+                    "details": err,
+                }
+            ), 504
+
         err = proc.stderr.read().decode("utf-8", errors="ignore")
         app.logger.error("yt-dlp failed early: %s", err)
         classified = classify_ytdlp_error(err)
@@ -157,3 +183,4 @@ def download():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
+

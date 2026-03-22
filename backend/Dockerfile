@@ -9,4 +9,4 @@ RUN apt-get update && apt-get install -y ffmpeg nodejs npm && rm -rf /var/lib/ap
 
 RUN pip install --no-cache-dir -r requirements.txt
 
-CMD ["gunicorn", "-w", "2", "-b", "0.0.0.0:10000", "yt_backend:app"]
+CMD ["gunicorn", "-w", "2", "--timeout", "180", "--graceful-timeout", "30", "-b", "0.0.0.0:10000", "yt_backend:app"]
