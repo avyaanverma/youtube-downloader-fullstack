@@ -1,3 +1,4 @@
+// This is a YouTube information extractor that helps you load video images, titles, and descriptions on YouTube.
 import CONFIG from "./config.js";
 
 const BACKEND_BASE_URL = (CONFIG.BASE_URL || "").replace(/\/+$/, "");
@@ -83,4 +84,5 @@ document.addEventListener("DOMContentLoaded", () => {
     );
   });
 });
+
 
