@@ -20,6 +20,10 @@ def resolve_cookie_args():
     cookies_file = os.environ.get("YTDLP_COOKIES_FILE", "cookies.txt")
     cookies_from_browser = os.environ.get("YTDLP_COOKIES_FROM_BROWSER", "").strip()
 
+    # Some platforms store multiline env content as literal \n; normalize it.
+    if "\\n" in cookies_content and "\n" not in cookies_content:
+        cookies_content = cookies_content.replace("\\n", "\n")
+
     if cookies_content:
         temp_path = os.path.join(tempfile.gettempdir(), "yt_cookies.txt")
         with open(temp_path, "w", encoding="utf-8") as fh:
@@ -51,7 +55,16 @@ def classify_ytdlp_error(stderr_text):
 
 @app.route("/health", methods=["GET"])
 def health():
-    return jsonify({"ok": True}), 200
+    raw = os.environ.get("YTDLP_COOKIES_CONTENT", "")
+    return jsonify(
+        {
+            "ok": True,
+            "cookies_env_present": bool(raw),
+            "cookies_env_len": len(raw),
+            "has_real_newline": "\n" in raw,
+            "has_escaped_newline": "\\n" in raw,
+        }
+    ), 200
 
 
 @app.route("/download", methods=["GET"])
