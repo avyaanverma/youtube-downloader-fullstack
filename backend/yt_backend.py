@@ -1,7 +1,6 @@
 import os
 import select
 import subprocess
-import tempfile
 import time
 
 from flask import Flask, Response, jsonify, request
@@ -11,36 +10,6 @@ app = Flask(__name__)
 CORS(app)
 
 
-def resolve_cookie_args():
-    """
-    Resolve yt-dlp auth flags in a deployment-friendly order:
-    1) YTDLP_COOKIES_CONTENT (raw Netscape cookies content)
-    2) YTDLP_COOKIES_FILE (path mounted on server)
-    3) YTDLP_COOKIES_FROM_BROWSER (local/dev only)
-    """
-    cookies_content = os.environ.get("YTDLP_COOKIES_CONTENT", "").strip()
-    cookies_file = os.environ.get("YTDLP_COOKIES_FILE", "cookies.txt")
-    cookies_from_browser = os.environ.get("YTDLP_COOKIES_FROM_BROWSER", "").strip()
-
-    # Some platforms store multiline env content as literal \n; normalize it.
-    if "\\n" in cookies_content and "\n" not in cookies_content:
-        cookies_content = cookies_content.replace("\\n", "\n")
-
-    if cookies_content:
-        temp_path = os.path.join(tempfile.gettempdir(), "yt_cookies.txt")
-        with open(temp_path, "w", encoding="utf-8") as fh:
-            fh.write(cookies_content)
-        return ["--cookies", temp_path]
-
-    if os.path.exists(cookies_file):
-        return ["--cookies", cookies_file]
-
-    if cookies_from_browser:
-        return ["--cookies-from-browser", cookies_from_browser]
-
-    return []
-
-
 def classify_ytdlp_error(stderr_text):
     lowered = (stderr_text or "").lower()
     if "sign in to confirm you" in lowered and "not a bot" in lowered:
@@ -48,8 +17,7 @@ def classify_ytdlp_error(stderr_text):
             "error": "youtube_bot_check",
             "message": (
                 "YouTube blocked anonymous access for this video. "
-                "Set YTDLP_COOKIES_CONTENT (recommended in cloud deploy), "
-                "or YTDLP_COOKIES_FILE, then redeploy."
+                "bgutil po_token may have failed. Check bgutil service."
             ),
         }
     return {"error": "yt-dlp failed", "message": "yt-dlp failed"}
@@ -57,16 +25,7 @@ def classify_ytdlp_error(stderr_text):
 
 @app.route("/health", methods=["GET"])
 def health():
-    raw = os.environ.get("YTDLP_COOKIES_CONTENT", "")
-    return jsonify(
-        {
-            "ok": True,
-            "cookies_env_present": bool(raw),
-            "cookies_env_len": len(raw),
-            "has_real_newline": "\n" in raw,
-            "has_escaped_newline": "\\n" in raw,
-        }
-    ), 200
+    return jsonify({"ok": True}), 200
 
 
 @app.route("/download", methods=["GET"])
@@ -88,35 +47,19 @@ def download():
     }
     fmt = quality_map.get(quality, "bestvideo+bestaudio/best")
 
-    cookie_args = resolve_cookie_args()
-
-    # Android client does not support cookies in yt-dlp.
-    player_client = "web" if cookie_args else "web,android"
-
-    remote_components = os.environ.get("YTDLP_REMOTE_COMPONENTS", "ejs:github").strip()
+    bgutil_url = os.environ.get("BGUTIL_URL", "http://localhost:4416").rstrip("/")
 
     ytdlp_cmd = [
         "yt-dlp",
-        "--js-runtimes",
-        "node",
+        "--js-runtimes", "node",
         "--extractor-args",
-        f"youtube:player_client={player_client}",
-        "--sleep-requests",
-        "2",
-        "--retries",
-        "5",
-        "-f",
-        fmt,
-        "-o",
-        "-",  # output to stdout
+        f"youtube:player_client=web,android;youtubepot-bgutilhttp:base_url={bgutil_url}",
+        "--sleep-requests", "2",
+        "--retries", "5",
+        "-f", fmt,
+        "-o", "-",  # output to stdout
         url,
     ]
-
-    if remote_components:
-        ytdlp_cmd[1:1] = ["--remote-components", remote_components]
-
-    if cookie_args:
-        ytdlp_cmd[1:1] = cookie_args
 
     try:
         proc = subprocess.Popen(ytdlp_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -183,4 +126,3 @@ def download():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
-
