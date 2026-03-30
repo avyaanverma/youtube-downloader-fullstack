@@ -14,6 +14,30 @@ CORS(app)
 IS_WINDOWS = sys.platform == "win32"
 
 
+def wake_bgutil(bgutil_url, timeout=25):
+    """
+    Ping bgutil service to wake it up (Render free tier sleeps after inactivity).
+    Returns True if reachable, False otherwise.
+    """
+    import urllib.request
+    import urllib.error
+    ping_url = bgutil_url.rstrip("/") + "/ping"
+    try:
+        req = urllib.request.urlopen(ping_url, timeout=timeout)
+        return req.status == 200
+    except Exception as e:
+        app.logger.warning("bgutil ping failed (%s): %s", ping_url, e)
+        return False
+
+
+@app.route("/bgutil-status", methods=["GET"])
+def bgutil_status():
+    """Quick endpoint to check if bgutil is alive — useful for debugging."""
+    bgutil_url = os.environ.get("BGUTIL_URL", "http://localhost:4416").rstrip("/")
+    alive = wake_bgutil(bgutil_url, timeout=10)
+    return jsonify({"bgutil_url": bgutil_url, "alive": alive}), (200 if alive else 502)
+
+
 def classify_ytdlp_error(stderr_text):
     lowered = (stderr_text or "").lower()
     if "sign in to confirm you" in lowered and "not a bot" in lowered:
@@ -25,6 +49,41 @@ def classify_ytdlp_error(stderr_text):
             ),
         }
     return {"error": "yt-dlp failed", "message": "yt-dlp failed"}
+
+
+def get_video_filesize(url, fmt, bgutil_url):
+    """
+    Run yt-dlp --print filesize_approx to get file size before streaming.
+    Returns int bytes, or None if unavailable (so we skip Content-Length).
+    Times out after 30s so it never blocks the download.
+    """
+    try:
+        result = subprocess.run(
+            [
+                "yt-dlp",
+                "--no-js-runtimes",
+                "--js-runtimes", "node",
+                "--remote-components", "ejs:github",
+                "--extractor-args",
+                f"youtube:player_client=web,android;youtubepot-bgutilhttp:base_url={bgutil_url}",
+                "--print", "%(filesize,filesize_approx)s",
+                "-f", fmt,
+                "--no-playlist",
+                url,
+            ],
+            capture_output=True,
+            timeout=30,
+        )
+        raw = result.stdout.decode("utf-8", errors="ignore").strip().splitlines()
+        for line in raw:
+            line = line.strip()
+            if line and line != "NA" and line.isdigit():
+                size = int(line)
+                if size > 0:
+                    return size
+    except Exception:
+        pass
+    return None
 
 
 def drain_stderr(proc, stderr_lines):
@@ -69,9 +128,17 @@ def download():
 
     bgutil_url = os.environ.get("BGUTIL_URL", "http://localhost:4416").rstrip("/")
 
+    # Wake up bgutil service (Render free tier sleeps after 15min inactivity).
+    # This ping takes ~1-2s if already awake, up to 25s if cold-starting.
+    if not wake_bgutil(bgutil_url):
+        app.logger.warning("bgutil unreachable at %s — bot check may fail", bgutil_url)
+        # Don't abort — try anyway, sometimes ping fails but yt-dlp still works
+
     ytdlp_cmd = [
         "yt-dlp",
+        "--no-js-runtimes",
         "--js-runtimes", "node",
+        "--remote-components", "ejs:github",
         "--extractor-args",
         f"youtube:player_client=web,android;youtubepot-bgutilhttp:base_url={bgutil_url}",
         "--sleep-requests", "2",
@@ -80,6 +147,15 @@ def download():
         "-o", "-",
         url,
     ]
+
+    # Fetch file size before starting the stream so we can send Content-Length.
+    # This makes the browser show a real progress bar + time remaining.
+    # We do this BEFORE spawning the download process (adds ~2-5s but worth it).
+    content_length = get_video_filesize(url, fmt, bgutil_url)
+    if content_length:
+        app.logger.info("Resolved Content-Length: %d bytes", content_length)
+    else:
+        app.logger.info("Could not resolve file size — browser will show 'Unknown time'")
 
     try:
         proc = subprocess.Popen(
@@ -183,10 +259,11 @@ def download():
     headers = {
         "Content-Disposition": 'attachment; filename="video.mp4"',
         "Content-Type": "video/mp4",
-        # Tell the browser/proxy not to buffer — stream straight through
         "X-Accel-Buffering": "no",
         "Cache-Control": "no-cache",
     }
+    if content_length:
+        headers["Content-Length"] = str(content_length)
     return Response(generate(), headers=headers, direct_passthrough=True)
 
 

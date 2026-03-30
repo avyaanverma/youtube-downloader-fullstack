@@ -1,6 +1,6 @@
 Flask
 flask-cors
 yt-dlp
+yt-dlp-ejs
 gunicorn
 bgutil-ytdlp-pot-provider
- 
