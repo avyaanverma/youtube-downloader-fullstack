@@ -33,6 +33,29 @@ function setBasicUiState({ title, channel, subtitle, thumbnailUrl }) {
   }
 }
 
+function triggerClientDownload(downloadUrl, quality) {
+  const fallbackOpen = () => window.open(downloadUrl, "_blank");
+
+  if (!chrome.downloads || typeof chrome.downloads.download !== "function") {
+    fallbackOpen();
+    return;
+  }
+
+  chrome.downloads.download(
+    {
+      url: downloadUrl,
+      filename: `youlaugh-${quality}-${Date.now()}.mp4`,
+      saveAs: true,
+      conflictAction: "uniquify",
+    },
+    (downloadId) => {
+      if (!downloadId || chrome.runtime.lastError) {
+        fallbackOpen();
+      }
+    },
+  );
+}
+
 function wireDownloadButtons(videoUrl) {
   const downloadBtns = document.querySelectorAll(".download-btn");
 
@@ -40,7 +63,7 @@ function wireDownloadButtons(videoUrl) {
     btn.onclick = () => {
       const quality = DOWNLOAD_QUALITIES[idx] || "best";
       const backendUrl = `${BACKEND_BASE_URL}/download?url=${encodeURIComponent(videoUrl)}&quality=${encodeURIComponent(quality)}`;
-      window.open(backendUrl, "_blank");
+      triggerClientDownload(backendUrl, quality);
     };
   });
 }
@@ -84,5 +107,3 @@ document.addEventListener("DOMContentLoaded", () => {
     );
   });
 });
-
-
