@@ -1,13 +1,17 @@
 import os
 import select
 import subprocess
+import sys
 import time
+import threading
 
 from flask import Flask, Response, jsonify, request
 from flask_cors import CORS
 
 app = Flask(__name__)
 CORS(app)
+
+IS_WINDOWS = sys.platform == "win32"
 
 
 def classify_ytdlp_error(stderr_text):
@@ -21,6 +25,23 @@ def classify_ytdlp_error(stderr_text):
             ),
         }
     return {"error": "yt-dlp failed", "message": "yt-dlp failed"}
+
+
+def drain_stderr(proc, stderr_lines):
+    """
+    Continuously read stderr in a background thread so the pipe
+    never fills up and blocks yt-dlp (which would stall stdout too).
+    """
+    try:
+        for line in iter(proc.stderr.readline, b""):
+            stderr_lines.append(line)
+    except Exception:
+        pass
+    finally:
+        try:
+            proc.stderr.close()
+        except Exception:
+            pass
 
 
 @app.route("/health", methods=["GET"])
@@ -37,7 +58,6 @@ def download():
     if not url.startswith(("http://", "https://")):
         return "Invalid url parameter", 400
 
-    # Map quality to yt-dlp format string
     quality_map = {
         "320p": "bestvideo[height<=320]+bestaudio/best[height<=320]",
         "360p": "bestvideo[height<=360]+bestaudio/best[height<=360]",
@@ -57,45 +77,86 @@ def download():
         "--sleep-requests", "2",
         "--retries", "5",
         "-f", fmt,
-        "-o", "-",  # output to stdout
+        "-o", "-",
         url,
     ]
 
     try:
-        proc = subprocess.Popen(ytdlp_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        proc = subprocess.Popen(
+            ytdlp_cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
     except FileNotFoundError:
         return jsonify({"error": "yt-dlp is not installed on server PATH"}), 500
     except Exception as exc:
         return jsonify({"error": f"Failed to start yt-dlp: {str(exc)}"}), 500
 
+    # KEY FIX: drain stderr continuously in a background thread.
+    # Without this, the stderr OS pipe buffer (~64KB) fills up, yt-dlp
+    # blocks trying to write logs, and stdout stalls — causing the
+    # "12KB then frozen" symptom.
+    stderr_lines = []
+    stderr_thread = threading.Thread(
+        target=drain_stderr, args=(proc, stderr_lines), daemon=True
+    )
+    stderr_thread.start()
+
     startup_timeout_s = int(os.environ.get("YTDLP_STARTUP_TIMEOUT", "90"))
     deadline = time.monotonic() + startup_timeout_s
     first_chunk = b""
 
-    while time.monotonic() < deadline:
-        if proc.poll() is not None:
-            break
+    if IS_WINDOWS:
+        result = []
 
-        ready, _, _ = select.select([proc.stdout], [], [], 1.0)
-        if ready:
-            first_chunk = proc.stdout.read(4096)
-            if first_chunk:
+        def read_first_chunk():
+            try:
+                data = proc.stdout.read(4096)
+                if data:
+                    result.append(data)
+            except Exception:
+                pass
+
+        t = threading.Thread(target=read_first_chunk, daemon=True)
+        t.start()
+
+        while time.monotonic() < deadline:
+            t.join(timeout=1.0)
+            if result or not t.is_alive():
                 break
+            if proc.poll() is not None:
+                break
+
+        if result:
+            first_chunk = result[0]
+
+    else:
+        while time.monotonic() < deadline:
+            if proc.poll() is not None:
+                break
+            ready, _, _ = select.select([proc.stdout], [], [], 1.0)
+            if ready:
+                first_chunk = proc.stdout.read(4096)
+                if first_chunk:
+                    break
 
     if not first_chunk:
         if proc.poll() is None:
             proc.terminate()
-            err = f"yt-dlp startup timeout after {startup_timeout_s}s"
-            app.logger.error(err)
+            stderr_thread.join(timeout=3)
+            err = b"".join(stderr_lines).decode("utf-8", errors="ignore")
+            msg = f"yt-dlp startup timeout after {startup_timeout_s}s"
+            app.logger.error("%s\n%s", msg, err)
             return jsonify(
                 {
                     "error": "yt-dlp startup timeout",
                     "message": "Video initialization took too long. Please retry.",
-                    "details": err,
+                    "details": msg,
                 }
             ), 504
 
-        err = proc.stderr.read().decode("utf-8", errors="ignore")
+        stderr_thread.join(timeout=3)
+        err = b"".join(stderr_lines).decode("utf-8", errors="ignore")
         app.logger.error("yt-dlp failed early: %s", err)
         classified = classify_ytdlp_error(err)
         return jsonify(
@@ -108,21 +169,29 @@ def download():
 
     def generate():
         yield first_chunk
-        for chunk in iter(lambda: proc.stdout.read(4096), b""):
-            yield chunk
-        proc.stdout.close()
-        proc.wait()
-        err = proc.stderr.read().decode("utf-8", errors="ignore")
-        if proc.returncode != 0:
-            app.logger.error("yt-dlp failed while streaming: %s", err)
+        try:
+            for chunk in iter(lambda: proc.stdout.read(65536), b""):
+                yield chunk
+        finally:
+            proc.stdout.close()
+            proc.wait()
+            stderr_thread.join(timeout=5)
+            if proc.returncode != 0:
+                err = b"".join(stderr_lines).decode("utf-8", errors="ignore")
+                app.logger.error("yt-dlp failed while streaming (rc=%d): %s", proc.returncode, err)
 
     headers = {
         "Content-Disposition": 'attachment; filename="video.mp4"',
         "Content-Type": "video/mp4",
+        # Tell the browser/proxy not to buffer — stream straight through
+        "X-Accel-Buffering": "no",
+        "Cache-Control": "no-cache",
     }
-    return Response(generate(), headers=headers)
+    return Response(generate(), headers=headers, direct_passthrough=True)
 
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
+    # Use threaded=True so each download gets its own thread and
+    # the generator isn't starved by other requests
+    app.run(host="0.0.0.0", port=port, threaded=True)
