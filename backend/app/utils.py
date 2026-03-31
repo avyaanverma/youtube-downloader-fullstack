@@ -21,6 +21,14 @@ def _cookies_available() -> bool:
     return _cookie_file_exists(COOKIE_FILE_PATH)
 
 
+def _js_runtime_args():
+    # Force a JS runtime for EJS challenge solving (override via env).
+    env_runtime = os.environ.get("YTDLP_JS_RUNTIMES") or os.environ.get("YTDLP_JS_RUNTIME")
+    if env_runtime:
+        return ["--js-runtimes", env_runtime]
+    return ["--js-runtimes", "deno"]
+
+
 def _base_ytdlp_args():
     # Use cookies-capable client when cookies exist unless overridden by env.
     # You can override via env: YTDLP_PLAYER_CLIENT=web/ios/tv/etc.
@@ -29,7 +37,12 @@ def _base_ytdlp_args():
         player_client = env_client
     else:
         player_client = "web" if _cookies_available() else "android"
-    return ["yt-dlp", "--extractor-args", f"youtube:player_client={player_client}"]
+    return [
+        "yt-dlp",
+        "--extractor-args",
+        f"youtube:player_client={player_client}",
+        *_js_runtime_args(),
+    ]
 
 
 def _cookie_file_from_env():
