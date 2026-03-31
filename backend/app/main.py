@@ -1,43 +1,34 @@
 ﻿from fastapi import FastAPI
 from pydantic import BaseModel
-from app.utils import has_ytdlp, select_format, download_video
 from fastapi.middleware.cors import CORSMiddleware
+from app.utils import select_format, download_video
 
 app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # for dev only
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-
-class URLRequest(BaseModel):
+class RequestModel(BaseModel):
     url: str
+    format_id: str | None = None
+    cookies: str | None = None
 
 
-class DownloadRequest(BaseModel):
-    url: str
-    format_id: str
-
-
-@app.get('/')
+@app.get("/")
 def root():
-    return {"message": "YouLaugh API Running"}
-
-
-@app.get("/check")
-def check():
-    return {"yt-dlp installed": has_ytdlp()}
+    return {"message": "API running"}
 
 
 @app.post("/formats")
-def format(req: URLRequest):
-    return {"formats": select_format(req.url)}
+def formats(req: RequestModel):
+    return {"formats": select_format(req.url, req.cookies)}
 
 
-@app.post('/download')
-def download(req: DownloadRequest):
-    return download_video(req.url, req.format_id)
+@app.post("/download")
+def download(req: RequestModel):
+    return download_video(req.url, req.format_id, req.cookies)

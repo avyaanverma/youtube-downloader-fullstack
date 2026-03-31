@@ -1,4 +1,5 @@
-﻿fastapi
-uvicorn[standard]
+﻿
+fastapi
+uvicorn
 yt-dlp
 yt-dlp-ejs
