@@ -1,7 +1,13 @@
-import os
+﻿import os
 import sys
-import subprocess 
+import subprocess
 import json
+
+def _base_ytdlp_args():
+    # Force the Android player client (matches your local terminal behavior).
+    # You can override via env: YTDLP_PLAYER_CLIENT=web/ios/tv/etc.
+    player_client = os.environ.get("YTDLP_PLAYER_CLIENT", "android")
+    return ["yt-dlp", "--extractor-args", f"youtube:player_client={player_client}"]
 
 def has_ytdlp() -> bool:
     try:
@@ -10,17 +16,18 @@ def has_ytdlp() -> bool:
     except:
         return False
 
-def select_format(url : str) -> str:
+def select_format(url: str):
     format_ids = []
     # Fetch video info json
     try:
-        output = subprocess.run(["yt-dlp", url, "--dump-json"], text=True, capture_output=True, check=True)
+        cmd = _base_ytdlp_args() + [url, "--dump-json"]
+        output = subprocess.run(cmd, text=True, capture_output=True, check=True)
         output = json.loads(output.stdout)
     except subprocess.CalledProcessError as e:
         return f"{e.returncode} : {e.stderr}"
-    
+
     # List the formats
-    if "formats" not in output: 
+    if "formats" not in output:
         return {"No formats available for that URL."}
 
     for f in output.get("formats", []):
@@ -29,7 +36,7 @@ def select_format(url : str) -> str:
                 "format_id": f.get("format_id"),
                 "resolution": f.get("resolution"),
                 "ext": f.get("ext"),
-                "url": f.get("url")  # 🔥 THIS is what frontend needs
+                "url": f.get("url")  # THIS is what frontend needs
             })
 
     return format_ids
@@ -44,7 +51,7 @@ def confirm_download() -> bool:
             return True
 
 def download_video(url: str, format_id: str):
-    command = ["yt-dlp", url, "-f", format_id]
+    command = _base_ytdlp_args() + [url, "-f", format_id]
 
     try:
         subprocess.run(command, check=True)
@@ -63,12 +70,11 @@ def download_video(url: str, format_id: str):
 
 #     # List formats
 #     format_id = select_format(url)
-    
+
 #     # Confirm Download
-#     if format_id != "" : 
+#     if format_id != "" :
 #         confirm = confirm_download()
 #         if not confirm:
 #             print("Download cancelled.")
-#         else: 
+#         else:
 #             download_video(url, format_id)
-    

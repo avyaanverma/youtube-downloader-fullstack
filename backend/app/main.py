@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+﻿from fastapi import FastAPI
 from pydantic import BaseModel
 from app.utils import has_ytdlp, select_format, download_video
 from fastapi.middleware.cors import CORSMiddleware
@@ -12,8 +12,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 class URLRequest(BaseModel):
-    url : str
+    url: str
 
 class DownloadRequest(BaseModel):
     url: str
@@ -32,5 +33,5 @@ def format(req: URLRequest):
     return {"formats": select_format(req.url)}
 
 @app.post('/download')
-def download(req: URLRequest):
+def download(req: DownloadRequest):
     return download_video(req.url, req.format_id)
