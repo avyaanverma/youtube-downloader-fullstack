@@ -1,8 +1,7 @@
-// This is a YouTube information extractor that helps you load video images, titles, and descriptions on YouTube.
+﻿// This is a YouTube information extractor that helps you load video images, titles, and descriptions on YouTube.
 import CONFIG from "./config.js";
 
 const BACKEND_BASE_URL = (CONFIG.BASE_URL || "").replace(/\/+$/, "");
-const COOKIE_PREF_KEY = "youlaugh_send_cookies";
 
 function isYouTubeVideoUrl(url) {
   try {
@@ -56,70 +55,10 @@ function triggerClientDownload(downloadUrl, quality) {
   );
 }
 
-function readCookiePreference() {
-  return new Promise((resolve) => {
-    if (!chrome.storage || !chrome.storage.local) {
-      resolve(false);
-      return;
-    }
-
-    chrome.storage.local.get([COOKIE_PREF_KEY], (result) => {
-      if (chrome.runtime.lastError) {
-        resolve(false);
-        return;
-      }
-
-      resolve(Boolean(result[COOKIE_PREF_KEY]));
-    });
-  });
-}
-
-function writeCookiePreference(value) {
-  if (!chrome.storage || !chrome.storage.local) return;
-  chrome.storage.local.set({ [COOKIE_PREF_KEY]: value });
-}
-
-function getCookiesForDomain(domain) {
-  return new Promise((resolve) => {
-    if (!chrome.cookies || typeof chrome.cookies.getAll !== "function") {
-      resolve([]);
-      return;
-    }
-
-    chrome.cookies.getAll({ domain }, (cookies) => {
-      if (chrome.runtime.lastError) {
-        console.warn("Cookie read failed:", chrome.runtime.lastError.message);
-        resolve([]);
-        return;
-      }
-
-      resolve(cookies || []);
-    });
-  });
-}
-
-async function collectYouTubeCookies() {
-  const domains = [".youtube.com", ".google.com"];
-  const results = await Promise.all(domains.map((domain) => getCookiesForDomain(domain)));
-  const merged = results.flat();
-  const seen = new Set();
-
-  return merged.filter((cookie) => {
-    const key = `${cookie.name}|${cookie.domain}|${cookie.path}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-}
-
-async function fetchFormats(videoUrl, sendCookies) {
+async function fetchFormats(videoUrl) {
   try {
     // This call can be slow because yt-dlp probes the video on the backend.
     const payload = { url: videoUrl };
-
-    if (sendCookies) {
-      payload.cookies = await collectYouTubeCookies();
-    }
 
     const res = await fetch(`${BACKEND_BASE_URL}/formats`, {
       method: "POST",
@@ -171,22 +110,11 @@ function setFormatsLoading(isLoading) {
 
 document.addEventListener("DOMContentLoaded", () => {
   const getFormatsBtn = document.getElementById("get-formats-btn");
-  const cookieToggle = document.getElementById("send-cookies-toggle");
 
   // Default UI state before we know the active tab.
   setFormatsLoading(false);
   setFormatsStatus("Open a YouTube video to fetch formats.");
   if (getFormatsBtn) getFormatsBtn.disabled = true;
-
-  if (cookieToggle) {
-    readCookiePreference().then((savedValue) => {
-      cookieToggle.checked = savedValue;
-    });
-
-    cookieToggle.addEventListener("change", () => {
-      writeCookiePreference(cookieToggle.checked);
-    });
-  }
 
   chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
     const currentTab = tabs && tabs[0];
@@ -215,8 +143,7 @@ document.addEventListener("DOMContentLoaded", () => {
         setFormatsLoading(true);
         setFormatsStatus("Fetching formats from backend...");
 
-        const sendCookies = Boolean(cookieToggle && cookieToggle.checked);
-        const formats = await fetchFormats(videoUrl, sendCookies);
+        const formats = await fetchFormats(videoUrl);
         renderFormats(formats);
 
         setFormatsLoading(false);

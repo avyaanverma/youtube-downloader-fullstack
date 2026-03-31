@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
@@ -121,34 +121,6 @@
       padding: 0 24px 24px 24px;
       box-sizing: border-box;
     }
-    .cookie-toggle {
-      background: var(--bg-card);
-      border-radius: var(--radius);
-      padding: 10px 12px;
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-    .toggle-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-    }
-    .toggle-label {
-      font-size: 0.95rem;
-      color: var(--text-main);
-    }
-    .toggle-input {
-      width: 18px;
-      height: 18px;
-      accent-color: var(--accent);
-      cursor: pointer;
-    }
-    .toggle-hint {
-      font-size: 0.8rem;
-      color: var(--text-muted);
-    }
     .action-btn {
       background: var(--button);
       color: var(--text-accent);
@@ -217,13 +189,6 @@
     </div>
   </div>
   <div class="options">
-    <div class="cookie-toggle">
-      <div class="toggle-row">
-        <label class="toggle-label" for="send-cookies-toggle">Send YouTube cookies</label>
-        <input id="send-cookies-toggle" class="toggle-input" type="checkbox" />
-      </div>
-      <div class="toggle-hint">Enable for age-restricted, private, or region-locked videos.</div>
-    </div>
     <button id="get-formats-btn" class="action-btn">Get Formats</button>
     <div id="formats-status" class="formats-status">Open a YouTube video to fetch formats.</div>
     <div id="formats-container" class="formats-container"></div>
