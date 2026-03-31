@@ -1,5 +1,5 @@
 const CONFIG = {
-  BASE_URL: "https://youtube-downloader-fullstack-2.onrender.com/"
+  BASE_URL: "http://localhost:8000"
 };
 
 export default CONFIG;

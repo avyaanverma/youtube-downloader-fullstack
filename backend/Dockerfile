@@ -1,12 +1,17 @@
-FROM python:3.10-slim
+﻿FROM python:3.11-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_NO_CACHE_DIR=1
 
 WORKDIR /app
 
-COPY . .
+COPY requirements.txt ./
+RUN pip install -r requirements.txt
 
-# ffmpeg for muxing + nodejs for yt-dlp JS challenge runtime
-RUN apt-get update && apt-get install -y ffmpeg nodejs npm && rm -rf /var/lib/apt/lists/*
+COPY app ./app
 
-RUN pip install --no-cache-dir -r requirements.txt
+EXPOSE 8000
 
-CMD ["gunicorn", "-w", "2", "--timeout", "180", "--graceful-timeout", "30", "-b", "0.0.0.0:10000", "yt_backend:app"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

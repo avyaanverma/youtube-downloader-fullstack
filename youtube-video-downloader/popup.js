@@ -1,8 +1,7 @@
-// This is a YouTube information extractor that helps you load video images, titles, and descriptions on YouTube.
+﻿// This is a YouTube information extractor that helps you load video images, titles, and descriptions on YouTube.
 import CONFIG from "./config.js";
 
 const BACKEND_BASE_URL = (CONFIG.BASE_URL || "").replace(/\/+$/, "");
-const DOWNLOAD_QUALITIES = ["320p", "480p", "720p"];
 
 function isYouTubeVideoUrl(url) {
   try {
@@ -56,52 +55,114 @@ function triggerClientDownload(downloadUrl, quality) {
   );
 }
 
-function wireDownloadButtons(videoUrl) {
-  const downloadBtns = document.querySelectorAll(".download-btn");
+async function fetchFormats(videoUrl) {
+  try {
+    // This call can be slow because yt-dlp probes the video on the backend.
+    const res = await fetch(`${BACKEND_BASE_URL}/formats`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ url: videoUrl }),
+    });
 
-  downloadBtns.forEach((btn, idx) => {
+    const data = await res.json();
+    return data.formats || [];
+  } catch (err) {
+    console.error("Error fetching formats", err);
+    return [];
+  }
+}
+
+function renderFormats(formats) {
+  const container = document.getElementById("formats-container");
+  container.innerHTML = "";
+
+  formats.forEach((f) => {
+    const btn = document.createElement("button");
+
+    btn.className = "format-card";
+    btn.innerText = `${f.resolution || "unknown"} - ${f.ext || "?"}`;
+
     btn.onclick = () => {
-      const quality = DOWNLOAD_QUALITIES[idx] || "best";
-      const backendUrl = `${BACKEND_BASE_URL}/download?url=${encodeURIComponent(videoUrl)}&quality=${encodeURIComponent(quality)}`;
-      triggerClientDownload(backendUrl, quality);
+      // Client-side download uses the direct URL returned by the backend.
+      triggerClientDownload(f.url, f.resolution);
     };
+
+    container.appendChild(btn);
   });
 }
 
+function setFormatsStatus(message) {
+  const statusEl = document.getElementById("formats-status");
+  statusEl.textContent = message || "";
+}
+
+function setFormatsLoading(isLoading) {
+  const button = document.getElementById("get-formats-btn");
+  if (!button) return;
+
+  button.disabled = isLoading;
+  button.textContent = isLoading ? "Loading formats..." : "Get Formats";
+}
+
 document.addEventListener("DOMContentLoaded", () => {
-  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+  const getFormatsBtn = document.getElementById("get-formats-btn");
+
+  // Default UI state before we know the active tab.
+  setFormatsLoading(false);
+  setFormatsStatus("Open a YouTube video to fetch formats.");
+  if (getFormatsBtn) getFormatsBtn.disabled = true;
+
+  chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
     const currentTab = tabs && tabs[0];
     const videoUrl = currentTab?.url || "";
 
     if (!currentTab?.id || !isYouTubeVideoUrl(videoUrl)) {
       setBasicUiState({
         title: "No YouTube watch page",
-        channel: "Go to a YouTube video and reopen popup",
+        channel: "Go to a YouTube video",
         subtitle: "",
       });
       return;
     }
 
-    wireDownloadButtons(videoUrl);
+    // Enable the button now that we have a valid YouTube URL.
+    if (getFormatsBtn) getFormatsBtn.disabled = false;
 
+    // Fetch formats only when the user clicks, to avoid slow popup load.
+    if (getFormatsBtn) {
+      getFormatsBtn.addEventListener("click", async () => {
+        if (!BACKEND_BASE_URL) {
+          setFormatsStatus("Backend URL is missing in config.js");
+          return;
+        }
+
+        setFormatsLoading(true);
+        setFormatsStatus("Fetching formats from backend...");
+
+        const formats = await fetchFormats(videoUrl);
+        renderFormats(formats);
+
+        setFormatsLoading(false);
+        setFormatsStatus(
+          formats.length
+            ? `Found ${formats.length} formats.`
+            : "No formats found for this video.",
+        );
+      });
+    }
+
+    // Existing metadata logic stays (title, channel, thumbnail, etc).
     chrome.tabs.sendMessage(
       currentTab.id,
       { action: "GET_VIDEO_DATA" },
       (response) => {
-        if (chrome.runtime.lastError) {
-          setBasicUiState({
-            title: "Could not read video data",
-            channel: "Reload the YouTube tab and try again",
-            subtitle: chrome.runtime.lastError.message || "",
-          });
-          return;
-        }
-
         setBasicUiState({
-          title: response?.title || "YouTube Video",
-          channel: response?.channel || "Unknown channel",
-          subtitle: response?.subscribers || "",
-          thumbnailUrl: response?.thumbnailUrl || "",
+          title: response?.title,
+          channel: response?.channel,
+          subtitle: response?.subscribers,
+          thumbnailUrl: response?.thumbnailUrl,
         });
       },
     );

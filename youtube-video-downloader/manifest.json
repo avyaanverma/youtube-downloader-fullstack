@@ -4,7 +4,8 @@
   "version": "1.0.2",
   "description": "This is a YouTube information extractor that helps you load video images, titles, and descriptions on YouTube.",
   "permissions": ["activeTab", "downloads"],
-  "host_permissions": ["https://youtube-downloader-fullstack-2.onrender.com/*"],
+  "host_permissions": ["https://youtube-downloader-fullstack-2.onrender.com/*", "http://localhost:8000/*",
+    "http://127.0.0.1:8000/*"],
   "browser_specific_settings": {
     "gecko": {
       "id": "youlaugh@avyaanverma.com",
