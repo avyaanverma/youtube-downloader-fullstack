@@ -13,6 +13,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 class RequestModel(BaseModel):
     url: str
     format_id: str | None = None
@@ -26,9 +27,9 @@ def root():
 
 @app.post("/formats")
 def formats(req: RequestModel):
-    return {"formats": select_format(req.url, req.cookies)}
+    return {"formats": select_format(req.url)}
 
 
 @app.post("/download")
 def download(req: RequestModel):
-    return download_video(req.url, req.format_id, req.cookies)
+    return download_video(req.url, req.format_id)
