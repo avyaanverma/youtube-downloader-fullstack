@@ -4,22 +4,28 @@ import subprocess
 import json
 
 
-def _base_ytdlp_args():
-    # Force the Android player client (matches your local terminal behavior).
-    # You can override via env: YTDLP_PLAYER_CLIENT=web/ios/tv/etc.
-    player_client = os.environ.get("YTDLP_PLAYER_CLIENT", "android")
-    return ["yt-dlp", "--extractor-args", f"youtube:player_client={player_client}"]
-
-
 COOKIE_FILE_PATH = os.path.join(os.path.dirname(__file__), "cookies.txt")
 
 
+def _cookie_file_exists():
+    return os.path.isfile(COOKIE_FILE_PATH) and os.path.getsize(COOKIE_FILE_PATH) > 0
+
+
+def _base_ytdlp_args():
+    # Use cookies-capable client when cookies.txt exists unless overridden by env.
+    # You can override via env: YTDLP_PLAYER_CLIENT=web/ios/tv/etc.
+    env_client = os.environ.get("YTDLP_PLAYER_CLIENT")
+    if env_client:
+        player_client = env_client
+    else:
+        player_client = "web" if _cookie_file_exists() else "android"
+    return ["yt-dlp", "--extractor-args", f"youtube:player_client={player_client}"]
+
+
 def _backend_cookie_file():
-    if not os.path.isfile(COOKIE_FILE_PATH):
-        return None
-    if os.path.getsize(COOKIE_FILE_PATH) <= 0:
-        return None
-    return COOKIE_FILE_PATH
+    if _cookie_file_exists():
+        return COOKIE_FILE_PATH
+    return None
 
 
 def has_ytdlp() -> bool:
